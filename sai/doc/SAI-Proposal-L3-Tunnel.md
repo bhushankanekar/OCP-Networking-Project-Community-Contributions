@@ -3,7 +3,7 @@ SAI L3 Tunnel Interface API Proposal
 
  Title       | SAI L3 Tunnel Interface API Proposal
 -------------|----------------------
- Authors     | Microsoft, Broadcom
+ Authors     | Broadcom, Microsoft
  Status      | In review
  Type        | Standards track
  Created     | 04/03/2015
@@ -11,7 +11,7 @@ SAI L3 Tunnel Interface API Proposal
 
 ---------
 
-## Overview ##
+# Overview #
 
 L3 tunnels, such as IP-in-IP, GRE, NVGRE, VXLAN, GENEVE, use IP fabrics as a transit network. They use IP encapsulation to deliver packets to the destination in the network through standard switching and routing.
 
@@ -19,24 +19,28 @@ The SAI tunnel API provides separate APIs to manage **L3 tunnel ingress interfac
 
 (Current proposal only defines APIs for IP-in-IP tunnel egress interfaces, others are left for the future)
 
-### L3 Tunnel Egress Interface Model ###
+## L3 Tunnel Egress Interface Model ##
 
 There are two types of L3 egress interface defined in the SAI, namely **router interface** and **l3 tunnel egress interface**. To note, the router interface object is used for both ingress and egress interface. As shown in Figure 1, the sai\_next\_hop object can point to either a router interface or a tunnel egress interface. A tunnel egress interface must point to a router interface. In this model, the tunnel egress interface is responsible for adding the tunneling header, e.g., IP, GRE, NVGRE. The router interface is responsible for updating the Ethernet source mac and vlan header. The next hop provides the destination mac information. When multiple tunnel egress interfaces point to a same router interface, all these tunnels will share a same source mac address and vlan id.
 
 As specified in earlier spec, a route object can point to either a next hop object or a next hop group object. In case the route points to a next hop group, and the next hop group object points to multiple next hops, and each next hop points to a tunnel egress interface. This will spread the IP packets over a set of L3 tunnels. 
 
-![Relations between SAI objects](figures/sai_tunnel.png "Figure 1: Relations between SAI objects")
+![Relations between SAI objects for L3 Tunnel egress interface](figures/sai_l3_tunnel_egress.png "Figure 1: Relations between SAI objects for L3 Tunnel egress interface")
 
-__Figure 1: Relations between SAI objects__
+__Figure 1: Relations between SAI objects for L3 Tunnel egress interface__
 
 
-### L3 Tunnel Ingress Interface Model ###
+## L3 Tunnel Ingress Interface Model ##
 
-A tunnel Ingress Interface is defined to terminate a tunnel. If the Tunnel is allowed (for the incoming packet’s dest MAC address and ingress port) then a lookup is done in the Tunnel Table to match entry based on the Source, Dest L3 Address in the outside header. If a match is found then the Tunnel is terminated and outside header removed. Normal L3 processing is done on the inside packet.
+A tunnel Ingress Interface is defined to terminate a tunnel. If an incoming packet matches a router interface, i.e., the packet hits one of router interface, then a lookup is done in the L3 Tunnel ingress table to match the packet based on Source, Dest IP Address in the outer IP header. If a match is found then the Tunnel is terminated and outer IP header is removed. Normal L3 processing is performed on the inside packet.
 
-## Specification ##
+![Relations between SAI objects for L3 Tunnel ingress interface](figures/sai_l3_tunnel_ingress.png "Figure 1: Relations between SAI objects for L3 Tunnel ingress interface")
 
-### Changes To sai.h ###
+__Figure 2: Relations between SAI objects for L3 Tunnel igress interface__
+
+# Specification #
+
+## Changes To sai.h ##
 
 A new type **SAI_API_L3_TUNNEL** is added.
 
@@ -69,10 +73,8 @@ typedef enum _sai_api_t
 } sai_api_t;
 ~~~
 
-### Changes To saitypes.h ###
-
-#### Next Hop Attribute ####
-SAI\_NEXT\_HOP\_ATTR\_ROUTER\_INTERFACE\_ID is changed to SAI\_NEXT\_HOP\_ATTR\_L3\_EGRESS\_INTERFACE\_ID.
+## Next Hop Attribute ##
+SAI\_NEXT\_HOP\_ATTR\_ROUTER\_INTERFACE\_ID is renamed to SAI\_NEXT\_HOP\_ATTR\_L3\_EGRESS\_INTERFACE\_ID.
 
 ~~~cpp
 /*
@@ -98,40 +100,9 @@ typedef enum _sai_next_hop_attr_t
 } sai_next_hop_attr_t;
 ~~~
 
-#### Attirbute Value ####
+## New Header sail3tunnelintf.h ##
 
-A new attribute value type, **sai_object_id_t**, is added.
-
-~~~cpp
-/*
- * Data Type to use enum's as attribute value is sai_int32_t s32
- *
- */
-typedef union {
-    bool booldata;
-    char chardata[32];
-    sai_uint8_t u8;
-    sai_int8_t s8;
-    sai_uint16_t u16;
-    sai_int16_t s16;
-    sai_uint32_t u32;
-    sai_int32_t s32;
-    sai_uint64_t u64;
-    sai_int64_t s64;
-    sai_mac_t mac;
-    sai_ip4_t ip4;
-    sai_ip6_t ip6;
-    sai_ip_address_t ipaddr;
-    sai_object_id_t intf;
-    sai_object_list_t objlist;
-    sai_acl_field_data_t aclfield;
-    sai_acl_action_data_t acldata;
-} sai_attribute_value_t;
-~~~
-
-### New Header sail3tunnelintf.h ###
-
-#### L3 Tunnel Egress Interface Type ####
+### L3 Tunnel Egress Interface Type ###
 
 *sai_l3_tunnel_egress_interface_type_t* defines the types of the tunnel. More specifically, it specifies the type of the encapsulated header. Currently, IPv4 and IPv6 are supported.
 
@@ -150,7 +121,7 @@ typedef enum _sai_l3_tunnel_egress_interface_type_t
 } sai_l3_tunnel_egress_interface_type_t;
 ~~~
 
-#### L3 Tunnel Egress Interface Attribute ####
+### L3 Tunnel Egress Interface Attribute ###
 
 *sai_l3_tunnel_egress_interface_attr_t* defines the l3 tunnel egress interface attributes.
 
@@ -218,8 +189,88 @@ typedef enum _sai_l3_tunnel_egress_interface_attr_t
 } sai_l3_tunnel_egress_interface_attr_t;
 ~~~
 
+### L3 Tunnel Ingress Interface Type ###
 
-#### Create L3 Tunnel Interface ####
+*sai_l3_tunnel_ingress_interface_type_t* defines the types of the tunnel. More specifically, it specifies the type of the encapsulated header. Currently, IPv4 and IPv6 are supported.
+
+~~~cpp
+
+/*
+ * L3 tunnel ingress interface type, i.e., the type of the incoming encapped header
+ */
+typedef enum _sai_l3_tunnel_ingress_interface_type_t
+{
+    /* Sai l3 tunnel ingress interface IPv4 */
+    SAI_L3_TUNNEL_INGRESS_INTERFACE_IPV4,
+
+    /* Sai l3 tunnel ingress interface IPv6 */
+    SAI_L3_TUNNEL_INGRESS_INTERFACE_IPV6,
+
+} sai_l3_tunnel_ingress_interface_type_t;
+
+~~~
+
+### L3 Tunnel Ingress Interface Attribute ###
+
+*sai\_l3\_tunnel\_egress\_interface\_attr\_t* defines the l3 tunnel egress interface attributes.
+
+* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_TYPE
+    * Property: MANDATORY\_ON\_CREATE | CREATE\_ONLY
+    * Value Type: sai\_l3\_tunnel\_ingress\_interface\_type\_t
+    * Comment: L3 tunnel egress interface type
+* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_ROUTER\_INTF\_LIST   
+    * Property: MANDATORY\_ON\_CREATE | CREATE\_AND\_SET
+    * Value Type: sai\_object\_list\_t
+    * Comment: L3 interfaces on which the tunnel encapped packet is allowed to ingress into the switch
+* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_SIP_PREFIX
+    * Property: MANDATORY\_ON\_CREATE | CREATE\_AND\_SET
+    * Value Type: sai\_ip\_prefix\_t
+    * Comment: L3 tunnel ingress interface source IP address prefix. This has to be coherent with the SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_TYPE.
+* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_DIP_PREFIX
+    * Property: MANDATORY\_ON\_CREATE | CREATE\_AND\_SET
+    * Value Type: sai\_ip\_prefix\_t
+    * Comment: L3 tunnel ingress interface destination IP address prefix. This has to be coherent with the SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_TYPE.
+* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_DSCP
+    * Property: CREATE\_AND\_SET
+    * Value Type: bool
+    * Comment: Whether to copy outer DSCP field to inner header DSCP. The default value is false.
+* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_VIRTUAL\_ROUTER
+    * Property: CREATE\_AND\_SET
+    * Value Type: sai\_object\_id\_t
+    * Comment: Virtual router associated with this tunnel. Post Decap the L3 address lookup will happen in this VRF. The default value is SAI_NULL_OBJECT_ID which corresponds to the global virtual router.
+
+~~~cpp
+/*
+ *  Attribute id for l3 tunnel ingress interface
+ */
+typedef enum _sai_l3_tunnel_ingress_interface_attr_t
+{
+    /* READ-ONLY */
+
+    /* READ-WRITE */
+    /* L3 tunnel ingress interface type [sai_l3_tunnel_ingress_interface_type_t] (MANDATORY_ON_CREATE|CREATE_ONLY) */
+    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_TYPE,
+
+	/* L3 tunnel ingress interface router interfaces list. [sai_object_list_t] (MANDATORY_ON_CREATE|CREATE_AND_SET) */
+    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_ROUTER_INTF_LIST,
+
+    /* L3 tunnel ingress interface source IP address. This has to be coherent with the SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_TYPE. [sai_ip_prefix_t] (MANDATORY_ON_CREATE|CREATE_AND_SET) */
+    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_SIP_PREFIX,
+
+    /* L3 tunnel ingress interface destination IP address. This has to be coherent with the SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_TYPE. [sai_ip_prefix_t] (MANDATORY_ON_CREATE|CREATE_AND_SET) */
+    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_DIP_PREFIX,
+
+    /* L3 tunnel ingress interface dscp, whether to copy outer DSCP field to inner header.
+     * [bool] (CREATE_AND_SET) (default to FALSE) */
+    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_DSCP,
+
+    /* L3 tunnel ingress interface virtual router [sai_object_id_t] (CREATE_AND_SET) (default to SAI_NULL_OBJECT_ID) */
+    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_VIRTUAL_ROUTER,
+} sai_l3_tunnel_ingress_interface_attr_t;
+
+~~~
+
+### Create L3 Tunnel Interface ###
 
 *sai_create_l3_tunnel_interface_fn* defines the interface to create l3 tunnel interface.
 
@@ -244,7 +295,7 @@ typedef sai_status_t (*sai_create_l3_tunnel_interface_fn)(
     );
 ~~~
 
-#### Remove L3 Tunnel Interface ####
+### Remove L3 Tunnel Interface ###
 
 *sai_remove_l3_tunnel_interface_fn* defines the interface to remove l3 tunnel interface.
 
@@ -265,7 +316,7 @@ typedef sai_status_t (*sai_remove_l3_tunnel_interface_fn)(
     );
 ~~~
 
-#### Set L3 Tunnel Interface Attributes ####
+### Set L3 Tunnel Interface Attributes ###
 
 *sai_set_l3_tunnel_interface_attribute_fn* defines the interface to set attributes for the l3 tunnel interface.
 
@@ -288,7 +339,7 @@ typedef sai_status_t (*sai_set_l3_tunnel_interface_attribute_fn)(
     );
 ~~~
 
-#### Get L3 Tunnel Interface Attributes ####
+### Get L3 Tunnel Interface Attributes ###
 
 *sai_get_l3_tunnel_interface_attribute_fn* defines the interface to get attributes for the l3 tunnel interface.
 
@@ -313,7 +364,7 @@ typedef sai_status_t (*sai_get_l3_tunnel_interface_attribute_fn)(
     );
 ~~~
 
-#### Tunnel API Table ####
+### Tunnel API Table ###
 
 *sai_tunnel_api_t* defines the tunnel API table.
 
@@ -337,9 +388,9 @@ typedef struct _sai_l3_tunnel_api_t
 ~~~
 
 
-## Example ##
+# Example #
 
-### Get The Tunnel API Table ###
+## Get The Tunnel API Table ##
 
 The following code shows how to get the tunnel API table:
 
@@ -355,7 +406,7 @@ else
 }
 ~~~
 
-### Create An L3 Tunnel Egress Interface ###
+## Create A L3 Tunnel Egress Interface ##
 
 The following code shows how to create a l3 tunnel egress interface:
 
@@ -381,7 +432,7 @@ else
 }
 ~~~
 
-### Remove An L3 Tunnel Egress Interface ###
+## Remove A L3 Tunnel Egress Interface ##
 
 The following code shows how to remove a l3 tunnel egress interface:
 
@@ -396,7 +447,7 @@ else
 }
 ~~~
 
-### Set L3 Tunnel Egress Interface Attributes ###
+## Set L3 Tunnel Egress Interface Attributes ##
 
 The following code shows how to set attributes to the tunnel interface:
 
@@ -415,7 +466,7 @@ else
 }
 ~~~
 
-### Get L3 Tunnel Egress Interface Attributes ###
+## Get L3 Tunnel Egress Interface Attributes ##
 
 The following code shows how to get attributes to the tunnel interface:
 
@@ -434,7 +485,7 @@ else
 }
 ~~~
 
-### Set Up A Route To Forward A Prefix's Traffic To A L3 Tunnel ###
+## Set Up A Route To Forward A Prefix's Traffic To A L3 Tunnel ##
 
 The following code shows how to set up a route to forward a prefix to a l3 tunnel:
 
@@ -491,106 +542,7 @@ if (sai_route_api->create_route(&unicast_route_entry, 1, &route_attr) != SAI_STA
 ~~~
 
 
-#### L3 Tunnel Ingress Interface Type ####
-
-*sai_l3_tunnel_ingress_interface_type_t* defines the types of the tunnel. More specifically, it specifies the type of the encapsulated header. Currently, IPv4 and IPv6 are supported.
-
-~~~cpp
-
-/*
- * L3 tunnel ingress interface type, i.e., the type of the incoming encapped header
- */
-typedef enum _sai_l3_tunnel_ingress_interface_type_t
-{
-    /* Sai l3 tunnel ingress interface IPv4 */
-    SAI_L3_TUNNEL_INGRESS_INTERFACE_IPV4,
-
-    /* Sai l3 tunnel ingress interface IPv6 */
-    SAI_L3_TUNNEL_INGRESS_INTERFACE_IPV6,
-
-} sai_l3_tunnel_ingress_interface_type_t;
-
-~~~
-
-#### L3 Tunnel Ingress Interface Attribute ####
-
-*sai\_l3\_tunnel\_egress\_interface\_attr\_t* defines the l3 tunnel egress interface attributes.
-
-* •	SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_ROUTER\_INTF\_LIST   
-    * Property: MANDATORY\_ON\_CREATE | CREATE\_ONLY
-    * Value Type: sai\_object\_id\_t
-    * Comment: L3 interfaces on which the tunnel encapped packet is allowed to ingress into the switch
-* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_TYPE
-    * Property: MANDATORY\_ON\_CREATE | CREATE\_AND\_SET
-    * Value Type: sai\_l3\_tunnel\_ingress\_interface\_type\_t
-    * Comment: L3 tunnel egress interface type
-* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_SIP
-    * Property: MANDATORY\_ON\_CREATE | CREATE\_AND\_SET
-    * Value Type: sai\_ip\_address\_t
-    * Comment: L3 tunnel ingress interface source IP address. This has to be coherent with the SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_TYPE.
-* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_DIP
-    * Property: MANDATORY\_ON\_CREATE | CREATE\_AND\_SET
-    * Value Type: sai\_ip\_address\_t
-    * Comment: L3 tunnel ingress interface destination IP address. This has to be coherent with the SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_TYPE.
-* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_DSCP
-    * Property: CREATE\_AND\_SET
-    * Value Type: uint8\_t
-    * Comment: L3 tunnel ingress interface dscp. The default value is 0.
-* SAI\_L3\_TUNNEL\_INGRESS\_INTERFACE\_ATTR\_VRF
-    * Property: CREATE\_AND\_SET
-    * Value Type: uint8\_t
-    * Comment: VRF associated with this tunnel. Post Decap the L3 address lookup will happen in this VRF. The default value is 0 which corresponds to the global VRF.
-
-~~~cpp
-/*
- *  Attribute id for l3 tunnel ingress interface
- */
-typedef enum \_sai\_l3\_tunnel\_ingress\_interface\_attr\_t
-{
-    /* READ-ONLY */
-
-    /* L3 tunnel ingress interface router interfaces list. [sai_object_id_t] (MANDATORY_ON_CREATE|CREATE_ONLY) */
-    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_ROUTER_INTF_LIST,
-
-    /* READ-WRITE */
-
-    /* L3 tunnel ingress interface type [sai_l3_tunnel_ingress_interface_type_t] (MANDATORY_ON_CREATE|CREATE_AND_SET) */
-    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_TYPE,
-
-    /* L3 tunnel ingress interface source IP address. This has to be coherent with the SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_TYPE. [sai_ip_address_t] (MANDATORY_ON_CREATE|CREATE_AND_SET) */
-    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_SIP,
-
-    /* L3 tunnel ingress interface destination IP address. This has to be coherent with the SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_TYPE. [sai_ip_address_t] (MANDATORY_ON_CREATE|CREATE_AND_SET) */
-    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_DIP,
-
-    /* L3 tunnel ingress interface dscp [uint8_t] (CREATE_AND_SET) (default to 0) */
-    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_DSCP,
-
-    /* L3 tunnel ingress interface VRF [sai_object_id_t] (CREATE_AND_SET) (default to 0) */
-    SAI_L3_TUNNEL_INGRESS_INTERFACE_ATTR_VRF,
-} sai\_l3\_tunnel\_ingress\_interface\_attr\_t;
-
-~~~
-
-
-#### Tunnel API Table ####
-
-*sai_tunnel_api_t* defines the tunnel API table.
-
-~~~cpp
-/*
- *  L3 tunnel methods table retrieved with sai_api_query()
- */
-typedef struct _sai_l3_tunnel_api_t
-{
-    sai_create_l3_tunnel_interface_fn        create_l3_tunnel_egress_interface;
-    sai_remove_l3_tunnel_interface_fn        remove_l3_tunnel_egress_interface;
-    sai_set_l3_tunnel_interface_attribute_fn set_l3_tunnel_egress_interface_attribute;
-    sai_get_l3_tunnel_interface_attribute_fn get_l3_tunnel_egress_interface_attribute;
-
-} sai_tunnel_api_t;
-~~~
-### Create An L3 Tunnel Ingress Interface ###
+## Create A L3 Tunnel Ingress Interface ##
 
 The following code shows how to create a l3 tunnel Ingress interface:
 
@@ -620,7 +572,7 @@ else
 }
 ~~~
 
-### Remove An L3 Tunnel Ingress Interface ###
+## Remove A L3 Tunnel Ingress Interface ##
 
 The following code shows how to remove a l3 tunnel Ingress interface:
 
@@ -634,7 +586,8 @@ else
     // Failed...
 }
 ~~~
-### Set L3 Tunnel Ingress Interface Attributes ###
+
+## Set L3 Tunnel Ingress Interface Attributes ##
 
 The following code shows how to set attributes to the tunnel interface:
 
@@ -653,7 +606,7 @@ else
 }
 ~~~
 
-### Get L3 Tunnel Ingress Interface Attributes ###
+## Get L3 Tunnel Ingress Interface Attributes ##
 
 The following code shows how to get attributes to the tunnel interface:
 
